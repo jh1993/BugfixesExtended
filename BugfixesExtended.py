@@ -223,7 +223,7 @@ def modify_class(cls):
                 amount = int(math.ceil(amount * multiplier))
             
             if hasattr(unit, "negates") and pre_damage_event in unit.negates:
-                unit.negates.remove(pre_damage_event)
+                unit.negates = [n for n in unit.negates if n is not pre_damage_event]
                 if amount > 0:
                     self.combat_log.debug("%s negated %d %s damage from %s" % (unit.name, amount, damage_type.name, source.name))
                 return 0
