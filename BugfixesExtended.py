@@ -14,6 +14,7 @@ import sys
 curr_module = sys.modules[__name__]
 
 EventOnShieldDamaged = namedtuple("EventOnShieldDamaged", "unit damage damage_type source")
+EventOnHealed = namedtuple("EventOnHealed", "unit heal source")
 
 class EventOnPreDamagedPenetration:
     def __init__(self, evt, penetration):
@@ -236,6 +237,7 @@ def modify_class(cls):
                 return 0
 
             amount = min(amount, unit.cur_hp)
+            amount = max(unit.cur_hp - unit.max_hp, amount)
             # In case the unit is killed by a pre-damaged event triggered by a heal.
             if unit.is_alive():
                 unit.cur_hp = unit.cur_hp - amount
@@ -268,15 +270,12 @@ def modify_class(cls):
                 self.event_manager.raise_event(damage_event, unit)
             
                 if (unit.cur_hp <= 0):
-                    unit.kill(damage_event = damage_event)			
-
-                    if (unit.cur_hp <= 0):
-                        unit.kill(damage_event = damage_event)			
+                    unit.kill(damage_event = damage_event)		
                     
-                if (unit.cur_hp > unit.max_hp):
-                    unit.cur_hp = unit.max_hp
             # set amount to 0 if there is no unit- ie, if an empty tile or dead unit was hit
             else:
+                if amount < 0:
+                    self.event_manager.raise_event(EventOnHealed(unit, -amount, source), unit)
                 amount = 0
 
             if (unit.cur_hp > unit.max_hp):
