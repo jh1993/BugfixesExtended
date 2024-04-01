@@ -17,20 +17,22 @@ EventOnShieldDamaged = namedtuple("EventOnShieldDamaged", "unit damage damage_ty
 EventOnHealed = namedtuple("EventOnHealed", "unit heal source")
 
 class EventOnPreDamagedPenetration:
-    def __init__(self, evt, penetration):
+    def __init__(self, evt, penetration, ignore_sh):
         self.unit = evt.unit
         self.damage = evt.damage
         self.damage_type = evt.damage_type
         self.source = evt.source
         self.penetration = penetration
+        self.ignore_sh = ignore_sh
 
 class EventOnDamagedPenetration:
-    def __init__(self, evt, penetration):
+    def __init__(self, evt, penetration, ignore_sh):
         self.unit = evt.unit
         self.damage = evt.damage
         self.damage_type = evt.damage_type
         self.source = evt.source
         self.penetration = penetration
+        self.ignore_sh = ignore_sh
 
 class EventOnMovedOldLocation:
     def __init__(self, evt, old_x, old_y):
@@ -185,9 +187,16 @@ class MinionBuffAura(Buff):
 
 def modify_class(cls):
 
+    if cls is Unit:
+
+        def deal_damage(self, amount, damage_type, spell, penetration=0, ignore_sh=False):
+            if not self.is_alive():
+                return 0
+            return self.level.deal_damage(self.x, self.y, amount, damage_type, spell, penetration=penetration, ignore_sh=ignore_sh)
+
     if cls is Level:
 
-        def deal_damage(self, x, y, amount, damage_type, source, flash=True, penetration=0):
+        def deal_damage(self, x, y, amount, damage_type, source, flash=True, penetration=0, ignore_sh=False):
 
             # Auto make effects if none were already made
             if flash:
@@ -209,8 +218,8 @@ def modify_class(cls):
 
             # Raise pre damage event (for conversions)
             pre_damage_event = EventOnPreDamaged(unit, amount, damage_type, source)
-            if penetration:
-                pre_damage_event = EventOnPreDamagedPenetration(pre_damage_event, penetration)
+            if penetration or ignore_sh:
+                pre_damage_event = EventOnPreDamagedPenetration(pre_damage_event, penetration, ignore_sh)
             self.event_manager.raise_event(pre_damage_event, unit)
 
             # Factor in shields and resistances after raising the raw pre damage event
@@ -229,7 +238,7 @@ def modify_class(cls):
                     self.combat_log.debug("%s negated %d %s damage from %s" % (unit.name, amount, damage_type.name, source.name))
                 return 0
 
-            if amount > 0 and unit.shields > 0:
+            if amount > 0 and unit.shields > 0 and not ignore_sh:
                 unit.shields = unit.shields - 1
                 self.combat_log.debug("%s blocked %d %s damage from %s" % (unit.name, amount, damage_type.name, source.name))
                 self.show_effect(unit.x, unit.y, Tags.Shield_Expire)				
@@ -265,8 +274,8 @@ def modify_class(cls):
                         self.damage_taken_sources[key] += amount
 
                 damage_event = EventOnDamaged(unit, amount, damage_type, source)
-                if penetration:
-                    damage_event = EventOnDamagedPenetration(damage_event, penetration)
+                if penetration or ignore_sh:
+                    damage_event = EventOnDamagedPenetration(damage_event, penetration, ignore_sh)
                 self.event_manager.raise_event(damage_event, unit)
             
                 if (unit.cur_hp <= 0):
@@ -369,5 +378,5 @@ def modify_class(cls):
         if hasattr(cls, func_name):
             setattr(cls, func_name, func)
 
-for cls in [Level, EventHandler]:
+for cls in [Level, EventHandler, Unit]:
     curr_module.modify_class(cls)
