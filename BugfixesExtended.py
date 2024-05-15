@@ -16,6 +16,19 @@ curr_module = sys.modules[__name__]
 EventOnShieldDamaged = namedtuple("EventOnShieldDamaged", "unit damage damage_type source")
 EventOnHealed = namedtuple("EventOnHealed", "unit heal source")
 
+class DamageNegation:
+
+    def __init__(self, evt, pay_costs=None, log=True):
+        self.evt = evt
+        self.pay_costs = pay_costs
+        self.log = log
+    
+    def add_to_unit(self, unit):
+        if hasattr(unit, "negates"):
+            unit.negates.append(self)
+        else:
+            unit.negates = [self]
+
 class EventOnPreDamagedPenetration:
     def __init__(self, evt, penetration, ignore_sh):
         self.unit = evt.unit
@@ -232,11 +245,20 @@ def modify_class(cls):
                 multiplier = (100 - resist_amount) / 100.0
                 amount = int(math.ceil(amount * multiplier))
             
-            if hasattr(unit, "negates") and pre_damage_event in unit.negates:
-                unit.negates = [n for n in unit.negates if n is not pre_damage_event]
-                if amount > 0:
-                    self.combat_log.debug("%s negated %d %s damage from %s" % (unit.name, amount, damage_type.name, source.name))
-                return 0
+            if hasattr(unit, "negates"):
+                negates = [n for n in unit.negates if n.evt is pre_damage_event]
+                if negates:
+                    unit.negates = [n for n in unit.negates if n.evt is not pre_damage_event]
+                    if amount > 0:
+                        log = True
+                        if not [n for n in negates if not n.pay_costs]:
+                            negate = random.choice(negates)
+                            negate.pay_costs()
+                            if not negate.log:
+                                log = False
+                        if log:
+                            self.combat_log.debug("%s negated %d %s damage from %s" % (unit.name, amount, damage_type.name, source.name))
+                    return 0
 
             if amount > 0 and unit.shields > 0 and not ignore_sh:
                 unit.shields = unit.shields - 1
