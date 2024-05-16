@@ -16,6 +16,24 @@ curr_module = sys.modules[__name__]
 EventOnShieldDamaged = namedtuple("EventOnShieldDamaged", "unit damage damage_type source")
 EventOnHealed = namedtuple("EventOnHealed", "unit heal source")
 
+class ChannelDependentBuff(Buff):
+
+    def on_init(self):
+        self.stack_type = STACK_INTENSITY
+        self.passed = True
+        self.owner_triggers[EventOnPass] = self.on_pass
+        self.show_effect = False
+
+    # Put this in pre-advance so that effects that happen when channeling stops
+    # will benefit from stat buffs.
+    def on_pre_advance(self):
+        if not self.passed:
+            self.owner.remove_buff(self)
+        self.passed = False
+
+    def on_pass(self, evt):
+        self.passed = True
+
 class DamageNegation:
 
     def __init__(self, evt, pay_costs=None, log=True):
