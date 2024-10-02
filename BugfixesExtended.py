@@ -10,6 +10,8 @@ from RareMonsters import *
 from Variants import *
 from RiftWizard import *
 
+import RiftWizard
+
 import sys
 curr_module = sys.modules[__name__]
 
@@ -414,9 +416,79 @@ def modify_class(cls):
             for handler in global_handlers:
                 handler(event)
 
+    if cls is PyGameView:
+
+        def draw_unit(self, u):
+            x = u.x * SPRITE_SIZE
+            y = u.y * SPRITE_SIZE
+
+            if u.transform_asset_name:
+                if not u.Transform_Anim:
+                    u.Transform_Anim = self.get_anim(u, forced_name=u.transform_asset_name)
+                u.Transform_Anim.draw(self.level_display)
+            else:
+                if not u.Anim:
+                    u.Anim = self.get_anim(u)
+                u.Anim.draw(self.level_display)
+
+            # Friendlyness icon
+            if not u.is_player_controlled and not are_hostile(u, self.game.p1):
+                image = get_image(['friendly'])
+                
+                num_frames = image.get_width() // STATUS_ICON_SIZE
+                frame_num = RiftWizard.cloud_frame_clock // STATUS_SUBFRAMES % num_frames 
+                source_rect = (STATUS_ICON_SIZE*frame_num, 0, STATUS_ICON_SIZE, STATUS_ICON_SIZE)
+                
+                self.level_display.blit(image, (x + SPRITE_SIZE - 4, y+1), source_rect)
+
+            # Lifebar
+            if u.cur_hp != u.max_hp:
+                hp_percent = u.cur_hp / float(u.max_hp)
+                max_bar = SPRITE_SIZE - 2
+                bar_pixels = int(hp_percent * max_bar)
+                margin = (max_bar - bar_pixels) // 2
+                pygame.draw.rect(self.level_display, (255, 0, 0, 128), (x + 1 + margin, y+SPRITE_SIZE-2, bar_pixels, 1))
+
+            # Draw Buffs
+            status_effects = []
+            
+            def get_buffs():
+                seen_types = set()
+                for b in u.buffs:
+                    # Do not display icons for passives- aka, passive regeneration
+                    if b.buff_type == BUFF_TYPE_PASSIVE and not hasattr(b, "show_icon"):
+                        continue
+                    if type(b) in seen_types:
+                        continue
+                    if b.asset == None:
+                        continue
+                    seen_types.add(type(b))
+                    yield b
+
+            status_effects = list(get_buffs())
+            if not status_effects:
+                return
+
+            buff_x = x+1
+            buff_index = RiftWizard.cloud_frame_clock // (STATUS_SUBFRAMES * 4) % len(status_effects)
+            
+            b = status_effects[buff_index]
+
+            if not b.asset:
+                color = b.color if b.color else Color(255, 255, 255)
+                pygame.draw.rect(self.level_display, color.to_tup(), (buff_x, y+1, 3, 3))
+            else:
+                image = get_image(b.asset)
+                num_frames = image.get_width() // STATUS_ICON_SIZE
+
+                frame_num = RiftWizard.cloud_frame_clock // STATUS_SUBFRAMES % num_frames 
+                source_rect = (STATUS_ICON_SIZE*frame_num, 0, STATUS_ICON_SIZE, STATUS_ICON_SIZE)
+                self.level_display.blit(image, (buff_x, y+1), source_rect)
+            buff_x += 4
+
     for func_name, func in [(key, value) for key, value in locals().items() if callable(value)]:
         if hasattr(cls, func_name):
             setattr(cls, func_name, func)
 
-for cls in [Level, EventHandler, Unit]:
+for cls in [Level, EventHandler, Unit, PyGameView]:
     curr_module.modify_class(cls)
