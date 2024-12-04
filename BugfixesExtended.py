@@ -220,6 +220,16 @@ class MinionBuffAura(Buff):
 
 def modify_class(cls):
 
+    if cls is DeathChill:
+
+        def get_impacted_tiles(self, x, y):
+            return [Point(x, y)]
+
+    if cls is MagnetizeSpell:
+
+        def get_impacted_tiles(self, x, y):
+            return [Point(x, y)]
+
     if cls is Unit:
 
         def deal_damage(self, amount, damage_type, spell, penetration=0, ignore_sh=False):
@@ -490,5 +500,5 @@ def modify_class(cls):
         if hasattr(cls, func_name):
             setattr(cls, func_name, func)
 
-for cls in [Level, EventHandler, Unit, PyGameView]:
+for cls in [Level, EventHandler, Unit, PyGameView, MagnetizeSpell, DeathChill]:
     curr_module.modify_class(cls)
