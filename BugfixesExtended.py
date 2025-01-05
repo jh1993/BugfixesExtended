@@ -122,12 +122,20 @@ class HydraBeam(BreathWeapon):
         return list(Bolt(self.caster.level, self.caster, Point(x, y)))
 
 def drain_max_hp_kill(unit, hp, source):
+    if hp <= 0:
+        return 0
+    if unit.shields:
+        unit.shields -= 1
+        unit.level.show_effect(unit.x, unit.y, Tags.Shield_Expire)
+        return 0
     if unit.max_hp > hp:
         drain_max_hp(unit, hp)
+        return hp
     else:
         old_hp = unit.max_hp
         unit.max_hp = 1
         unit.kill(damage_event=EventOnDamaged(unit, old_hp, Tags.Dark, source))
+        return old_hp
 
 def increase_cooldown(caster, target, melee):
     spells = [s for s in target.spells if s.cool_down and target.cool_downs.get(s, 0) < s.get_stat("cool_down")]
